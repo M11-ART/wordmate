@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium
+      bg-brand text-[#F3F5EC] rounded-sm transition-colors hover:bg-brand-deep
+      disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-hl {
+    @apply bg-hl text-brand-deep hover:bg-[#e7bb45];
+  }
+  .btn-ghost {
+    @apply bg-transparent text-brand border border-line hover:border-brand hover:bg-brand-soft;
+  }
+  .panel {
+    @apply bg-card border border-line rounded-sm shadow-card;
+  }
+  .label-tag {
+    @apply inline-block text-[11px] px-2 py-0.5 rounded-sm bg-brand-soft text-brand;
+  }
+  .input-key {
+    @apply font-mono text-2xl md:text-3xl tracking-[0.15em] outline-none bg-transparent w-full text-center;
+  }
+}
+
+/* 打字字母状态 */
+.letter { display: inline-block; min-width: 0.6em; }
+.letter-correct { color: #26503F; }
+.letter-wrong { color: #C2563A; background: rgba(194,86,58,.14); border-radius: 2px; }
+.letter-pending { color: #9AA493; }
+.letter-cursor { border-bottom: 3px solid #26503F; animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { border-color: transparent; } }
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #c2cab2; border-radius: 6px; }
+::-webkit-scrollbar-track { background: transparent; }

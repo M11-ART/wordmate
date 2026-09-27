@@ -1,0 +1,35 @@
+{
+  "name": "word-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "ankipack": "^0.3.1",
+    "echarts": "^6.1.0",
+    "file-saver": "^2.0.5",
+    "idb": "^8.0.3",
+    "jszip": "^3.10.2",
+    "sql.js": "^1.14.2",
+    "ts-fsrs": "^5.4.2",
+    "vue": "^3.5.42",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^24.19.0",
+    "@types/sql.js": "^1.4.11",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/tsconfig": "^0.9.1",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "3.4",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0",
+    "vue-tsc": "^3.3.11"
+  }
+}
