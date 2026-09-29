@@ -39,14 +39,15 @@ export async function upsertWord(
   const d = await db()
   const old: WordRecord | undefined = await d.get('records', word.w)
   const rec: WordRecord = {
+    ...old,
     word: word.w,
     phonetic: word.p,
     translation: word.t,
     decks: old?.decks?.includes(deckId) ? old.decks : [...(old?.decks ?? []), deckId],
-    card: old?.card,
     wrongCount: old?.wrongCount ?? 0,
     studied: old?.studied ?? false,
     ...patch,
+    updatedAt: Date.now(),
   }
   await d.put('records', rec)
   return rec
@@ -57,6 +58,7 @@ export async function markStudiedInDB(word: WordItem, deckId: string): Promise<W
   const d = await db()
   const old: WordRecord | undefined = await d.get('records', word.w)
   const rec: WordRecord = {
+    ...old,
     word: word.w,
     phonetic: word.p,
     translation: word.t,
@@ -65,6 +67,7 @@ export async function markStudiedInDB(word: WordItem, deckId: string): Promise<W
     wrongCount: old?.wrongCount ?? 0,
     studied: true,
     studiedAt: Date.now(),
+    updatedAt: Date.now(),
   }
   await d.put('records', rec)
   return rec
@@ -85,7 +88,12 @@ export async function ensureCards(): Promise<void> {
   void changed
 }
 
+export function genUid(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10)
+}
+
 export async function addLog(log: SessionLog) {
+  if (!log.uid) log.uid = genUid()
   await (await db()).add('logs', log)
 }
 
@@ -97,4 +105,55 @@ export async function clearAllData() {
   const d = await db()
   await d.clear('records')
   await d.clear('logs')
+}
+
+// ===== 云同步：导出 / 合并导入 =====
+export interface SyncPayload {
+  v: number
+  records: WordRecord[]
+  logs: SessionLog[]
+  exportedAt: number
+}
+
+export async function exportData(): Promise<SyncPayload> {
+  const d = await db()
+  const [records, logs] = await Promise.all([d.getAll('records'), d.getAll('logs')])
+  for (const l of logs as SessionLog[]) if (!l.uid) l.uid = 'legacy-' + genUid()
+  return { v: 1, records, logs, exportedAt: Date.now() }
+}
+
+/** 合并远端数据：records 按 updatedAt 取新；logs 按 uid 取并集。返回合并后条数 */
+export async function importMerge(payload: Partial<SyncPayload>): Promise<{
+  records: number
+  logs: number
+}> {
+  const d = await db()
+  const localRecs = (await d.getAll('records')) as WordRecord[]
+  const recMap = new Map<string, WordRecord>()
+  for (const r of localRecs) recMap.set(r.word, r)
+  for (const r of payload.records ?? []) {
+    const ex = recMap.get(r.word)
+    if (!ex || (r.updatedAt ?? 0) >= (ex.updatedAt ?? 0)) recMap.set(r.word, r)
+  }
+  const recsOut = [...recMap.values()]
+
+  const localLogs = (await d.getAll('logs')) as SessionLog[]
+  const logMap = new Map<string, SessionLog>()
+  for (const l of localLogs) {
+    if (!l.uid) l.uid = 'legacy-' + genUid()
+    logMap.set(l.uid, l)
+  }
+  for (const l of payload.logs ?? []) {
+    const uid = l.uid || 'remote-' + genUid()
+    if (!logMap.has(uid)) logMap.set(uid, { ...l, uid })
+  }
+  const logsOut = [...logMap.values()].map(({ id, ...rest }) => rest) // 去自增 id 避免冲突
+
+  const tx = d.transaction(['records', 'logs'], 'readwrite')
+  await tx.objectStore('records').clear()
+  await tx.objectStore('logs').clear()
+  for (const r of recsOut) await tx.objectStore('records').put(r)
+  for (const l of logsOut) await tx.objectStore('logs').put(l)
+  await tx.done
+  return { records: recsOut.length, logs: logsOut.length }
 }

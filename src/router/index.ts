@@ -11,6 +11,7 @@ const router = createRouter({
     { path: '/recall/:id/:ch?', name: 'recall', component: () => import('../views/RecallView.vue'), props: true },
     { path: '/review', name: 'review', component: () => import('../views/ReviewView.vue') },
     { path: '/wrong', name: 'wrong', component: () => import('../views/WrongBookView.vue') },
+    { path: '/sync', name: 'sync', component: () => import('../views/SyncView.vue') },
     { path: '/anki', name: 'anki', component: () => import('../views/AnkiExportView.vue') },
   ],
   scrollBehavior() {

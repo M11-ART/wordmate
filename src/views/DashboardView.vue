@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { getAllRecords, getAllLogs } from '../lib/db'
-import { stats } from '../lib/store'
+import { stats, refreshStats } from '../lib/store'
 import { DECKS } from '../lib/words'
 import { todayStr } from '../lib/useSession'
 import type { WordRecord, SessionLog } from '../lib/types'
@@ -11,6 +11,7 @@ const records = ref<WordRecord[]>([])
 const logs = ref<SessionLog[]>([])
 
 onMounted(async () => {
+  await refreshStats()
   records.value = await getAllRecords()
   logs.value = await getAllLogs()
 })

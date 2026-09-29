@@ -66,10 +66,35 @@ function onKeydown(e: KeyboardEvent) {
 watch(
   () => s.value?.index,
   () => {
+    // 切换单词：程序清空输入框（不触发 input 事件），并保持焦点以唤起软键盘
+    if (hiddenInput.value) hiddenInput.value.value = ''
     hiddenInput.value?.focus()
     if (autoSound.value && sessRef.value) speak(sessRef.value.s.current.w)
   },
 )
+
+// 移动端软键盘：以输入框内容为准，幂等地同步到会话状态
+// （桌面物理键盘走 window keydown，字符被拦截不会进入输入框，两条路径互不冲突）
+function syncFromInput(e: Event) {
+  const sess = sessRef.value
+  if (!sess || sess.s.finished) return
+  const target = (e.target as HTMLInputElement).value.replace(/[\r\n]/g, '')
+  let cur = sess.s.input
+  // 前缀不一致：全部回退后重输
+  if (cur !== target.slice(0, cur.length)) {
+    while (cur.length) {
+      sess.backspace()
+      cur = cur.slice(0, -1)
+    }
+  }
+  // 回退多余字符
+  while (cur.length > target.length) {
+    sess.backspace()
+    cur = cur.slice(0, -1)
+  }
+  // 补齐缺少字符
+  for (let i = cur.length; i < target.length; i++) sess.typeKey(target[i])
+}
 
 const letters = computed(() => {
   const sess = sessRef.value
@@ -99,13 +124,18 @@ const meta = computed(() => deckMeta(props.id))
     <template v-if="s && !s.finished">
       <div class="max-w-3xl mx-auto px-4 md:px-8 py-12 md:py-16" @click="hiddenInput?.focus()">
         <!-- 单词字母 -->
-        <div class="font-mono text-4xl md:text-6xl text-center tracking-[0.12em] min-h-[90px] flex flex-wrap justify-center items-center">
+        <div class="relative font-mono text-4xl md:text-6xl text-center tracking-[0.12em] min-h-[90px] flex flex-wrap justify-center items-center">
           <span v-for="(st, i) in letters" :key="i" class="letter"
                 :class="{
                   'letter-correct': st === 'correct',
                   'letter-pending': st === 'pending',
                   'letter-cursor': st === 'cursor',
                 }">{{ s.current.w[i] }}</span>
+          <!-- 透明但可交互的输入框：移动端软键盘输入经 input 事件同步；text-base 防 iOS 聚焦放大 -->
+          <input ref="hiddenInput" type="text" enterkeyhint="done"
+                 class="absolute inset-0 w-full h-full opacity-0 text-base cursor-text"
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 @input="syncFromInput" aria-label="在此输入单词">
         </div>
 
         <!-- 音标 + 发音 -->
@@ -137,7 +167,6 @@ const meta = computed(() => deckMeta(props.id))
           敲错不会前进，敲对自动进入下一词；也可用 ← → 方向键切换，手机请点页面唤起键盘
         </div>
       </div>
-      <input ref="hiddenInput" class="fixed opacity-0 h-px w-px -z-10" autocomplete="off" autocapitalize="off" spellcheck="false">
     </template>
 
     <SessionResult v-else-if="s" :total="deck.chapters[chIndex].words.length" :wrong="s.wrong" :duration="s.duration">

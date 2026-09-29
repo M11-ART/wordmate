@@ -2,6 +2,7 @@
 import { reactive } from 'vue'
 import { getAllRecords, ensureCards } from './db'
 import { isDue } from './srs'
+import { scheduleAutoPush } from './sync'
 
 export const stats = reactive({
   due: 0,
@@ -17,4 +18,5 @@ export async function refreshStats() {
   stats.due = recs.filter((r) => isDue(r)).length
   stats.wrong = recs.filter((r) => r.wrongCount > 0).length
   stats.studied = recs.filter((r) => r.studied).length
+  scheduleAutoPush() // 学习数据变化后，若已登录则防抖自动上传
 }

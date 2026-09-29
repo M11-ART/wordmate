@@ -41,10 +41,12 @@ export interface WordRecord {
   lastWrongAt?: number
   studied: boolean
   studiedAt?: number
+  updatedAt?: number // 最近更新时间戳，云同步时用于比较新旧
 }
 
 export interface SessionLog {
   id?: number
+  uid?: string // 全局唯一标识，云同步去重用
   date: string // YYYY-MM-DD
   at: number
   mode: StudyMode

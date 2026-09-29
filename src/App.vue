@@ -17,6 +17,7 @@ const nav = [
   { to: '/library', label: '词库', icon: 'book' },
   { to: '/review', label: '复习', icon: 'repeat', badge: () => stats.due },
   { to: '/wrong', label: '错词本', icon: 'alert', badge: () => stats.wrong },
+  { to: '/sync', label: '云同步', icon: 'cloud' },
   { to: '/anki', label: 'Anki 导出', icon: 'download' },
 ]
 
@@ -25,6 +26,7 @@ const paths: Record<string, string> = {
   book: 'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM19 19H6',
   repeat: 'M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3',
   alert: 'M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
+  cloud: 'M6.5 18.5a4 4 0 0 1-.4-7.98 6 6 0 0 1 11.4-1.2 4.5 4.5 0 0 1-.3 9.18z',
   download: 'M12 3v12m0 0 4-4m-4 4-4-4M4 19h16',
 }
 </script>
