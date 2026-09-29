@@ -4,6 +4,13 @@ import { DECKS, loadDeck, deckMeta } from '../lib/words'
 import { getAllRecords } from '../lib/db'
 import { buildApkg } from '../lib/anki'
 import { saveAs } from 'file-saver'
+import {
+  getConfig,
+  saveConfig,
+  verifyConfig,
+  uploadApkg,
+  type GhConfig,
+} from '../lib/github'
 import type { WordItem } from '../lib/types'
 
 type Source = 'deck' | 'wrong' | 'studied'
@@ -24,6 +31,18 @@ const studiedCount = ref(0)
 const generating = ref(false)
 const previewFlip = ref(false)
 const previewType = ref<'rec' | 'spell'>('rec')
+
+const gh = ref<GhConfig>(getConfig())
+const ghMsg = ref('')
+const ghOk = ref(false)
+const uploading = ref(false)
+const lastBytes = ref<Uint8Array | null>(null)
+const lastName = ref('')
+const uploadResult = ref<{
+  htmlUrl: string
+  commitSha: string
+  updated: boolean
+} | null>(null)
 
 onMounted(async () => {
   await selectDeck(deckId.value)
@@ -79,9 +98,12 @@ const deckName = computed(() => {
 async function generate() {
   if (!recognize.value && !spelling.value) return
   generating.value = true
+  uploadResult.value = null
   try {
     await ensureDynamic()
     const list = source.value === 'deck' ? words.value : dynamicWords.value
+    const fileId = source.value === 'deck' ? deckId.value : source.value
+    const name = `WordMate-${fileId}.apkg`
     const bytes = await buildApkg(list, {
       deckName: deckName.value,
       tag: source.value === 'deck' ? deckId.value : source.value,
@@ -90,11 +112,56 @@ async function generate() {
       newPerDay: newPerDay.value,
       desiredRetention: desiredRetention.value,
     })
-    const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/octet-stream' })
-    const fileId = source.value === 'deck' ? deckId.value : source.value
-    saveAs(blob, `WordMate-${fileId}.apkg`)
+    const u8 =
+      bytes instanceof Uint8Array
+        ? bytes
+        : new Uint8Array(bytes as ArrayBuffer)
+    lastBytes.value = u8
+    lastName.value = name
+    const blob = new Blob([u8 as BlobPart], {
+      type: 'application/octet-stream',
+    })
+    saveAs(blob, name)
   } finally {
     generating.value = false
+  }
+}
+
+function saveGh() {
+  saveConfig(gh.value)
+  ghMsg.value = '已保存到本机浏览器'
+  ghOk.value = false
+}
+
+async function testGh() {
+  ghMsg.value = '测试中…'
+  try {
+    const full = await verifyConfig(gh.value)
+    ghMsg.value = `连接成功：${full}`
+    ghOk.value = true
+    saveConfig(gh.value)
+  } catch (e) {
+    ghMsg.value = (e as Error).message
+    ghOk.value = false
+  }
+}
+
+async function upload() {
+  if (!lastBytes.value) return
+  uploading.value = true
+  uploadResult.value = null
+  ghMsg.value = ''
+  try {
+    uploadResult.value = await uploadApkg(
+      gh.value,
+      lastName.value,
+      lastBytes.value,
+      `upload ${lastName.value} via WordMate`,
+    )
+  } catch (e) {
+    ghMsg.value = (e as Error).message
+  } finally {
+    uploading.value = false
   }
 }
 </script>
@@ -173,6 +240,35 @@ async function generate() {
             </select>
           </div>
         </div>
+        <!-- GitHub 牌组仓库 -->
+        <div class="panel p-5">
+          <div class="text-sm font-bold mb-1">4. 同步到 GitHub 牌组仓库（可选）</div>
+          <p class="text-xs text-ink-soft mb-3 leading-relaxed">
+            网页本身不持有你的 GitHub 凭证，需要填一个专用 Token（仅保存在本机浏览器）。
+            存档仓库已建好：
+            <a class="text-brand" href="https://github.com/M11-ART/wordmate-decks" target="_blank">M11-ART/wordmate-decks</a>
+          </p>
+          <label class="block text-xs text-ink-soft mb-1">GitHub Token（建议 fine-grained，仅授权该仓库 Contents 读写）</label>
+          <input type="password" v-model="gh.token" placeholder="github_pat_..."
+                 class="w-full border border-line rounded-sm px-2 py-1.5 text-sm bg-card">
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <label class="block text-xs text-ink-soft mb-1">所有者</label>
+              <input v-model="gh.owner" class="w-full border border-line rounded-sm px-2 py-1.5 text-sm bg-card">
+            </div>
+            <div>
+              <label class="block text-xs text-ink-soft mb-1">仓库</label>
+              <input v-model="gh.repo" class="w-full border border-line rounded-sm px-2 py-1.5 text-sm bg-card">
+            </div>
+          </div>
+          <label class="block text-xs text-ink-soft mb-1 mt-2">分支</label>
+          <input v-model="gh.branch" class="w-full border border-line rounded-sm px-2 py-1.5 text-sm bg-card">
+          <div class="flex gap-2 mt-3">
+            <button class="text-xs px-3 py-1.5 rounded-sm border border-line hover:bg-brand-soft" @click="saveGh">保存</button>
+            <button class="text-xs px-3 py-1.5 rounded-sm border border-brand text-brand hover:bg-brand-soft" @click="testGh">测试连接</button>
+          </div>
+          <div v-if="ghMsg" class="text-xs mt-2 leading-relaxed" :class="ghOk ? 'text-brand' : 'text-ink-soft'">{{ ghMsg }}</div>
+        </div>
       </div>
 
       <!-- 右：预览 + 生成 -->
@@ -225,8 +321,16 @@ async function generate() {
             <span>共生成卡片 {{ totalCards }} 张</span>
           </div>
           <button class="btn btn-hl w-full mt-4 py-2.5" :disabled="!cardKinds || generating" @click="generate">
-            {{ generating ? '生成中…' : '下载 .apkg 牌组' }}
+            {{ generating ? '生成中…' : '生成并下载 .apkg' }}
           </button>
+          <button class="w-full mt-2 py-2.5 rounded-sm border border-brand text-sm text-brand transition-colors hover:bg-brand-soft disabled:opacity-50"
+                  :disabled="!lastBytes || uploading" @click="upload">
+            {{ uploading ? '上传中…' : '上传到 GitHub 存档' }}
+          </button>
+          <div v-if="uploadResult" class="mt-3 text-xs bg-brand-soft rounded-sm p-3 space-y-1">
+            <div class="text-brand font-bold">{{ uploadResult.updated ? '已更新' : '已上传' }}到 GitHub</div>
+            <a class="text-brand break-all" :href="uploadResult.htmlUrl" target="_blank">{{ uploadResult.htmlUrl }}</a>
+          </div>
         </div>
       </div>
     </div>
